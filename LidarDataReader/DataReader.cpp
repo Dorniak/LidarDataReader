@@ -1,8 +1,7 @@
 #include "DataReader.h"
 #include <time.h>
-#define HEADER 42
-#define PAYLOAD 1206
-#define FLAG 2
+#define MIN_DISTANCE 1
+#define UDP_FLAG 2
 DataReader::DataReader(IPEndPoint^ LIp)//SerialPort^ p
 {
 	/*Constructor of the class, here we can configure the port where our client is going to listen
@@ -25,17 +24,18 @@ void DataReader::ReadData()
 
 	float azimuth = 0, distance = 0, intensity = 0, first_azimuth = -1;
 	cli::array<Byte>^ ReceiveBytes;
-	int bytesread, channel = 0;
+	int bytesread = 0, channel = 0;
 	clock_t start, finish;
 	cliext::vector<Punto3D ^>^ pointCloud = gcnew cliext::vector<Punto3D ^>;
+
 	while (1) {
-		bytesread = 0;
-		channel = 0;
+	
 		ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
 		start = clock();
-		
+
 		for (int block = 1; block <= 12; block++) {
-			bytesread += FLAG;
+			bytesread += UDP_FLAG;
+
 			if (first_azimuth == -1) {
 				first_azimuth = (ReceiveBytes[bytesread] + (ReceiveBytes[bytesread + 1] << 8));
 				first_azimuth /= 100;
@@ -45,6 +45,7 @@ void DataReader::ReadData()
 				azimuth /= 100;
 			}
 			bytesread += 2;
+
 			if (azimuth == first_azimuth) {
 				//enviar vector
 				pointCloud->clear();
@@ -56,12 +57,12 @@ void DataReader::ReadData()
 				bytesread += 2;
 				intensity = ReceiveBytes[bytesread];
 				bytesread++;
+				channel++;
 
-				if (distance >= 1)
+				if (distance >= MIN_DISTANCE)
 				{
 					pointCloud->push_back(gcnew Punto3D(distance, intensity, azimuth));
 				}
-				channel++;
 
 				if (channel > 15)
 				{
@@ -69,6 +70,8 @@ void DataReader::ReadData()
 				}
 			}
 		}
+		bytesread = 0;
+		channel = 0;
 		finish = clock();
 		double duration = (double)(finish - start) / CLOCKS_PER_SEC;
 		Console::WriteLine("Duracion: {0}, paquetes por S: {1} puntos {2}", duration, 60 / duration, pointCloud->size());
