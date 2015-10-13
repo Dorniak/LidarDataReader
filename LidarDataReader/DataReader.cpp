@@ -2,6 +2,8 @@
 #include <time.h>
 #define MIN_DISTANCE 1
 #define UDP_FLAG 2
+#define NUMBER_OF_BLOCKS 12
+#define NUMBER_OF_CHANNELS 32
 DataReader::DataReader(IPEndPoint^ LIp)//SerialPort^ p
 {
 	/*Constructor of the class, here we can configure the port where our client is going to listen
@@ -25,15 +27,16 @@ void DataReader::ReadData()
 	float azimuth = 0, distance = 0, intensity = 0, first_azimuth = -1;
 	cli::array<Byte>^ ReceiveBytes;
 	int bytesread = 0, channel = 0;
-	clock_t start, finish;
+	clock_t start_procces, finish_process,start_loop,finish_loop;
 	cliext::vector<Punto3D ^>^ pointCloud = gcnew cliext::vector<Punto3D ^>;
-
-	while (1) {
 	
-		ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
-		start = clock();
+	while (true) {
+		start_loop = clock();
 
-		for (int block = 1; block <= 12; block++) {
+		ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
+
+		start_procces = clock();
+		for (int block = 1; block <= NUMBER_OF_BLOCKS; block++) {
 			bytesread += UDP_FLAG;
 
 			if (first_azimuth == -1) {
@@ -52,28 +55,26 @@ void DataReader::ReadData()
 				first_azimuth = azimuth;
 			}
 
-			for (int i = 0; i < 32;i++) {
+			for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
 				distance = (ReceiveBytes[bytesread] + (ReceiveBytes[bytesread + 1] << 8));
 				bytesread += 2;
 				intensity = ReceiveBytes[bytesread];
 				bytesread++;
 				channel++;
-
-				if (distance >= MIN_DISTANCE)
-				{
-					pointCloud->push_back(gcnew Punto3D(distance, intensity, azimuth));
-				}
-
+				pointCloud->push_back(gcnew Punto3D(distance, intensity, azimuth));
 				if (channel > 15)
 				{
 					channel = 0;
 				}
 			}
-		}
+		}//for blocks
 		bytesread = 0;
 		channel = 0;
-		finish = clock();
-		double duration = (double)(finish - start) / CLOCKS_PER_SEC;
-		Console::WriteLine("Duracion: {0}, paquetes por S: {1} puntos {2}", duration, 60 / duration, pointCloud->size());
+		finish_process = clock();
+		finish_loop = clock();
+		double duration = (double)(finish_process - start_procces) / CLOCKS_PER_SEC;
+		double duration2 = (double)(finish_loop - start_loop) / CLOCKS_PER_SEC;
+		Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|", duration, 60 / duration, pointCloud->size(), duration2);
+		
 	}//While
 }
