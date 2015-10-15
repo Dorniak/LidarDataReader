@@ -61,7 +61,7 @@ void DataReader::ReadData()
 				intensity = ReceiveBytes[bytesread];
 				bytesread++;
 				channel++;
-				pointCloud->push_back(gcnew Punto3D(distance, intensity, azimuth));
+				pointCloud->push_back(gcnew Punto3D((distance*2)/1000, intensity, azimuth));
 				if (channel > 15)
 				{
 					channel = 0;
