@@ -32,7 +32,7 @@ void DataReader::ReadData()
 	cli::array<Double>^ azimuths;
 	cli::array<Double>^ distances;
 	cli::array<Double>^ intensities;
-	
+
 	while (true) {
 		start_loop = clock();
 		a = 0, d = 0, n = 0;
@@ -47,16 +47,15 @@ void DataReader::ReadData()
 			intensities = ExtractIntensities(ReceiveBytes);
 
 			for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
-				Console::WriteLine("Bloque {0}", block);
+				
 				for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
 					pointCloud->push_back(gcnew Punto3D(distances[d], intensities[n], azimuths[a], getAngle(i)));
-					//if (block==1)
-					Console::WriteLine("Distancia {0}\tIntensidad {1}\tAzimuth {2}\tAngle {3}", distances[d], intensities[n], azimuths[a], getAngle(i));
 					d++;
 					n++;
 				}
 				a++;
 			}
+			
 			fallos = 0;
 			//for blocks
 			//TODO: Enviar vector.
@@ -64,7 +63,7 @@ void DataReader::ReadData()
 			finish_loop = clock();
 			double duration = (double)(finish_process - start_procces) / CLOCKS_PER_SEC;
 			double duration2 = (double)(finish_loop - start_loop) / CLOCKS_PER_SEC;
-			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|", duration, 60 / duration, pointCloud->size(), duration2);
+			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\n\n", duration, 60 / duration, pointCloud->size(), duration2);
 
 		}
 		catch (Exception^ e)
@@ -78,6 +77,10 @@ void DataReader::ReadData()
 cli::array<Double>^ DataReader::InterpolateAzimuth(cli::array<Byte>^ &ReceiveBytes) {
 	if (ReceiveBytes->Length == 0)
 		throw gcnew Exception("Recibiendo 0 bytes...");
+
+	if (ReceiveBytes->Length != 1206)
+		throw gcnew Exception("Paquete con formato extraño");
+
 	cli::array<Double>^ azimuths = gcnew cli::array<Double>(24);
 	int j = 2;
 
@@ -111,6 +114,9 @@ cli::array<Double>^ DataReader::ExtractDistances(cli::array<Byte>^ &ReceiveBytes
 	if (ReceiveBytes->Length == 0)
 		throw gcnew Exception("Recibiendo 0 bytes...");
 
+	if (ReceiveBytes->Length != 1206)
+		throw gcnew Exception("Paquete con formato extraño");
+
 	cli::array<Double>^ distances = gcnew cli::array<Double>(384);
 	int bytes = 0;
 	double dist;
@@ -118,12 +124,11 @@ cli::array<Double>^ DataReader::ExtractDistances(cli::array<Byte>^ &ReceiveBytes
 	for (int j = 0; j < 12; j++)
 	{
 		bytes += 4;
-		for (int i = 0; i < 32; i += 2)
+		for (int i = 0; i < 32; i++)
 		{
 			dist = (ReceiveBytes[bytes] + (ReceiveBytes[bytes + 1] << 8));
 			distances[j * 32 + i] = (dist * 2) / 1000;
 			bytes+=3;
-			Console::WriteLine("Dist: {0}, distance {1}",dist, distances[j * 32 + i]);
 		}
 	}
 
@@ -131,8 +136,12 @@ cli::array<Double>^ DataReader::ExtractDistances(cli::array<Byte>^ &ReceiveBytes
 }
 
 cli::array<Double>^ DataReader::ExtractIntensities(cli::array<Byte>^ &ReceiveBytes) {
+
 	if (ReceiveBytes->Length == 0)
 		throw gcnew Exception("Recibiendo 0 bytes...");
+
+	if (ReceiveBytes->Length != 1206)
+		throw gcnew Exception("Paquete con formato extraño");
 
 	cli::array<Double>^ intensities = gcnew cli::array<Double>(384);
 	int bytes = 0;
@@ -146,7 +155,6 @@ cli::array<Double>^ DataReader::ExtractIntensities(cli::array<Byte>^ &ReceiveByt
 			bytes += 3;
 		}
 	}
-
 	return intensities;
 }
 
