@@ -17,7 +17,16 @@ ref class DataReader
 public:
 	DataReader(IPEndPoint^ LaserIpEndPoint);
 	~DataReader();
+
 	void ReadData();
+
+	cli::array<Double>^ InterpolateAzimuth(cli::array<Byte>^& ReceiveBytes);
+
+	cli::array<Double>^ ExtractDistances(cli::array<Byte>^& ReceiveBytes);
+
+	cli::array<Double>^ ExtractIntensities(cli::array<Byte>^& ReceiveBytes);
+
+	double getAngle(int channel);
 
 private:
 
