@@ -1,10 +1,13 @@
 #include "DataReader.h"
 #include <time.h>
 
-
 #define NUMBER_OF_BLOCKS 12
 #define NUMBER_OF_CHANNELS 16
 
+/// <summary>
+/// Initializes a new instance of the <see cref="DataReader"/> class.
+/// </summary>
+/// <param name="LIp">The Lidar IP.</param>
 DataReader::DataReader(IPEndPoint^ LIp)//SerialPort^ p
 {
 	/*Constructor of the class, here we can configure the port where our client is going to listen
@@ -12,12 +15,19 @@ DataReader::DataReader(IPEndPoint^ LIp)//SerialPort^ p
 	LaserIpEndPoint = LIp;
 	ClientLIDAR = gcnew UdpClient(LIp);
 }
+
+/// <summary>
+/// Finalizes an instance of the <see cref="DataReader"/> class.
+/// </summary>
 DataReader::~DataReader()
 {
 	delete ClientLIDAR;
 	delete LaserIpEndPoint;
 }
 
+/// <summary>
+/// Reads the stream data from the LIDAR.
+/// </summary>
 void DataReader::ReadData()
 {
 	/*Function that read data from the LIDAR by the network
@@ -25,7 +35,8 @@ void DataReader::ReadData()
 	the 42 header bytes. Then we convert and save the info according to the points and finally we save the point
 	in the cloud vector.*/
 
-	int a = 0, d = 0, n = 0,fallos=0;
+	int azimuth_index = 0, distance_index = 0, intensity_index, fallos = 0;
+	double t = 0, duration2 = 0;
 	clock_t start_procces, finish_process, start_loop, finish_loop;
 	cliext::vector<Punto3D ^>^ pointCloud = gcnew cliext::vector<Punto3D ^>;
 	cli::array<Byte>^ ReceiveBytes;
@@ -34,12 +45,14 @@ void DataReader::ReadData()
 	cli::array<Double>^ intensities;
 
 	while (true) {
-		start_loop = clock();
-		a = 0, d = 0, n = 0;
+		azimuth_index = 0, distance_index = 0, intensity_index = 0;
 		try
 		{
+			Console::ResetColor();
+			start_loop = clock();
+
 			ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
-		
+
 			start_procces = clock();
 
 			azimuths = InterpolateAzimuth(ReceiveBytes);
@@ -47,33 +60,75 @@ void DataReader::ReadData()
 			intensities = ExtractIntensities(ReceiveBytes);
 
 			for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
-				
 				for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
-					pointCloud->push_back(gcnew Punto3D(distances[d], intensities[n], azimuths[a], getAngle(i)));
-					d++;
-					n++;
+					pointCloud->push_back(gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i)));
+					distance_index++;
+					intensity_index++;
 				}
-				a++;
+				azimuth_index++;
 			}
-			
-			fallos = 0;
-			//for blocks
+
 			//TODO: Enviar vector.
 			finish_process = clock();
 			finish_loop = clock();
-			double duration = (double)(finish_process - start_procces) / CLOCKS_PER_SEC;
-			double duration2 = (double)(finish_loop - start_loop) / CLOCKS_PER_SEC;
-			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\n\n", duration, 60 / duration, pointCloud->size(), duration2);
+			saveProcessTime((finish_process - start_procces) / CLOCKS_PER_SEC);
+			savePackageTime((finish_loop - start_loop) / CLOCKS_PER_SEC);
 
-		}
+			fallos = 0;
+
+			double pt = getProcesTime();
+			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", pt, 60 / pt, pointCloud->size(), getPackageTime());
+		}//Try
 		catch (Exception^ e)
 		{
 			fallos++;
-			Console::Write("\r ["+fallos+"]"+e->Message);
+			Console::BackgroundColor = ConsoleColor::Red;
+			Console::Write("\r [" + fallos + "]" + e->Message);
 		}
-
 	}//while
 }
+
+/// <summary>
+/// Gets the process time.
+/// </summary>
+/// <returns></returns>
+double DataReader::getProcessTime()
+{
+	return process_Time;
+}
+
+/// <summary>
+/// Gets the time between packages.
+/// </summary>
+/// <returns></returns>
+double DataReader::getPackageTime()
+{
+	return package_Time;
+}
+
+/// <summary>
+/// Saves the process time.
+/// </summary>
+/// <param name="time">The time.</param>
+void DataReader::saveProcessTime(double time)
+{
+	process_Time = time;
+}
+
+/// <summary>
+/// Saves the time between packages.
+/// </summary>
+/// <param name="time">The time.</param>
+void DataReader::savePackageTime(double time)
+{
+	package_Time = time;
+}
+
+/// <summary>
+/// Extract and interpolates the azimuths.
+/// </summary>
+/// <param name="ReceiveBytes">The receive bytes.</param>
+/// <returns></returns>
 cli::array<Double>^ DataReader::InterpolateAzimuth(cli::array<Byte>^ &ReceiveBytes) {
 	if (ReceiveBytes->Length == 0)
 		throw gcnew Exception("Recibiendo 0 bytes...");
@@ -110,6 +165,11 @@ cli::array<Double>^ DataReader::InterpolateAzimuth(cli::array<Byte>^ &ReceiveByt
 	return azimuths;
 }
 
+/// <summary>
+/// Extracts the distances.
+/// </summary>
+/// <param name="ReceiveBytes">The receive bytes.</param>
+/// <returns></returns>
 cli::array<Double>^ DataReader::ExtractDistances(cli::array<Byte>^ &ReceiveBytes) {
 	if (ReceiveBytes->Length == 0)
 		throw gcnew Exception("Recibiendo 0 bytes...");
@@ -128,15 +188,19 @@ cli::array<Double>^ DataReader::ExtractDistances(cli::array<Byte>^ &ReceiveBytes
 		{
 			dist = (ReceiveBytes[bytes] + (ReceiveBytes[bytes + 1] << 8));
 			distances[j * 32 + i] = (dist * 2) / 1000;
-			bytes+=3;
+			bytes += 3;
 		}
 	}
 
 	return distances;
 }
 
+/// <summary>
+/// Extracts the intensities.
+/// </summary>
+/// <param name="ReceiveBytes">The receive bytes.</param>
+/// <returns></returns>
 cli::array<Double>^ DataReader::ExtractIntensities(cli::array<Byte>^ &ReceiveBytes) {
-
 	if (ReceiveBytes->Length == 0)
 		throw gcnew Exception("Recibiendo 0 bytes...");
 
@@ -158,6 +222,11 @@ cli::array<Double>^ DataReader::ExtractIntensities(cli::array<Byte>^ &ReceiveByt
 	return intensities;
 }
 
+/// <summary>
+/// Gets the angle.
+/// </summary>
+/// <param name="channel">The channel.</param>
+/// <returns></returns>
 double DataReader::getAngle(int channel)
 {
 	switch (channel)

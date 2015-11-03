@@ -6,13 +6,13 @@ using namespace System;
 using namespace System::Net;
 int main(cli::array<System::String ^> ^args)
 {
-
-    Console::WriteLine(L"Lidar Ready!\n");
+	
 	
 	IPEndPoint^ LaserIpEndPoint = gcnew IPEndPoint(IPAddress::Any, 2368);
 	DataReader^ reader = gcnew DataReader(LaserIpEndPoint);
-	
-	Console::WriteLine("| Process  Time |\tPackages/s\t|\tPoints\t|\tLoop  Time|");
+	Console::SetWindowSize(80, 50);
+	Console::Beep(415,200);
+	Console::WriteLine("| Process  Time |\tPackages/s\t|\tPoints\t|\tLoop  Time|\n");
 		reader->ReadData();
 	
 	
