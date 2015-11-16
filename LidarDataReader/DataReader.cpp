@@ -6,12 +6,12 @@
 
 /// <summary>
 /// Initializes a new instance of the <see cref="DataReader"/> class.
+/// LaserIpEndPoint apunta a la dirección ip del laser (O a cualquier IP) escuchando solo al puerto 2368
+/// ClientLIDAR es el sockect que se utiliza para la comunicación con el LIDAR.
 /// </summary>
 /// <param name="LIp">The Lidar IP.</param>
 DataReader::DataReader(IPEndPoint^ LIp)//SerialPort^ p
 {
-	/*Constructor of the class, here we can configure the port where our client is going to listen
-	We listen for any IP on port 2368*/
 	LaserIpEndPoint = LIp;
 	ClientLIDAR = gcnew UdpClient(LIp);
 }
@@ -27,17 +27,14 @@ DataReader::~DataReader()
 
 /// <summary>
 /// Reads the stream data from the LIDAR.
+/// <para>Función que lee el stream de bytes del LIDAR y obtiene las propiedades del punto retornadas, así como se calculan aquellas
+/// que pueden inducirse de estas primeras. Con esta inforación se construye y almacena el punto Cada paquete consta de 1206 bytes
+/// ClientLIDAR elimina la cabecera de 42 bytes </para>
 /// </summary>
 void DataReader::ReadData()
 {
-	/*Function that read data from the LIDAR by the network
-	We receive a UDP package where we only need the first 1200 bytes as a points information less
-	the 42 header bytes. Then we convert and save the info according to the points and finally we save the point
-	in the cloud vector.*/
-
-	int azimuth_index = 0, distance_index = 0, intensity_index, fallos = 0;
-	double t = 0, duration2 = 0;
-	clock_t start_procces, finish_process, start_loop, finish_loop;
+	int azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;
+	clock_t start_procces, finish, start_loop;
 	cliext::vector<Punto3D ^>^ pointCloud = gcnew cliext::vector<Punto3D ^>;
 	cli::array<Byte>^ ReceiveBytes;
 	cli::array<Double>^ azimuths;
@@ -45,7 +42,6 @@ void DataReader::ReadData()
 	cli::array<Double>^ intensities;
 
 	while (true) {
-		azimuth_index = 0, distance_index = 0, intensity_index = 0;
 		try
 		{
 			Console::ResetColor();
@@ -67,17 +63,13 @@ void DataReader::ReadData()
 				}
 				azimuth_index++;
 			}
-
 			//TODO: Enviar vector.
-			finish_process = clock();
-			finish_loop = clock();
-			saveProcessTime((finish_process - start_procces) / CLOCKS_PER_SEC);
-			savePackageTime((finish_loop - start_loop) / CLOCKS_PER_SEC);
+			finish = clock();
+			saveProcessTime((finish - start_procces) / CLOCKS_PER_SEC);
+			savePackageTime((finish - start_loop) / CLOCKS_PER_SEC);
 
-			fallos = 0;
-
-			double pt = getProcesTime();
-			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", pt, 60 / pt, pointCloud->size(), getPackageTime());
+			azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;;
+			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", getProcessTime(), 60 / getProcessTime(), pointCloud->size(), getPackageTime());
 		}//Try
 		catch (Exception^ e)
 		{
@@ -91,7 +83,7 @@ void DataReader::ReadData()
 /// <summary>
 /// Gets the process time.
 /// </summary>
-/// <returns></returns>
+/// <returns>process_Time</returns>
 double DataReader::getProcessTime()
 {
 	return process_Time;
@@ -100,7 +92,7 @@ double DataReader::getProcessTime()
 /// <summary>
 /// Gets the time between packages.
 /// </summary>
-/// <returns></returns>
+/// <returns>package_Time</returns>
 double DataReader::getPackageTime()
 {
 	return package_Time;
