@@ -31,11 +31,13 @@ DataReader::~DataReader()
 /// que pueden inducirse de estas primeras. Con esta inforación se construye y almacena el punto Cada paquete consta de 1206 bytes
 /// ClientLIDAR elimina la cabecera de 42 bytes </para>
 /// </summary>
+//void DataReader::ReadData(double &frecuency, double &packages, double &ptime, bool &treal)
 void DataReader::ReadData()
 {
-	int azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;
-	clock_t start_procces, finish, start_loop;
-	cliext::vector<Punto3D ^>^ pointCloud = gcnew cliext::vector<Punto3D ^>;
+	int azimuth_index = 0, distance_index = 0, intensity_index = 0;
+	double first_azimuth = -1;
+	clock_t start_procces, start_loop, frecuency_clock;
+	List<Punto3D^>^ pointCloud = gcnew List<Punto3D^>();
 	cli::array<Byte>^ ReceiveBytes;
 	cli::array<Double>^ azimuths;
 	cli::array<Double>^ distances;
@@ -44,38 +46,41 @@ void DataReader::ReadData()
 	while (true) {
 		try
 		{
-			Console::ResetColor();
-			start_loop = clock();
-
+			//Console::ResetColor();
 			ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
 
 			start_procces = clock();
-
+			frecuency_clock = clock();
 			azimuths = InterpolateAzimuth(ReceiveBytes);
 			distances = ExtractDistances(ReceiveBytes);
 			intensities = ExtractIntensities(ReceiveBytes);
 
+			if (first_azimuth == -1)
+				first_azimuth = azimuths[0];
+
 			for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
 				for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
-					pointCloud->push_back(gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i)));
+					if (azimuths[azimuth_index + 1] >= first_azimuth) {
+					//	frecuency = ((clock() - frecuency_clock) / CLOCKS_PER_SEC);
+						//TODO: Enviar vector.
+						pointCloud->Clear();
+						first_azimuth = azimuths[azimuth_index + 1];
+					}
+					pointCloud[i] = gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i));
 					distance_index++;
 					intensity_index++;
 				}
 				azimuth_index++;
 			}
-			//TODO: Enviar vector.
-			finish = clock();
-			saveProcessTime((finish - start_procces) / CLOCKS_PER_SEC);
-			savePackageTime((finish - start_loop) / CLOCKS_PER_SEC);
 
-			azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;;
-			Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", getProcessTime(), 60 / getProcessTime(), pointCloud->size(), getPackageTime());
+		//	ptime = ((clock() - start_procces) / CLOCKS_PER_SEC);
+			azimuth_index = 0, distance_index = 0, intensity_index = 0;
+			//packages = ptime / 60;
+			//	Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", getProcessTime(), 60 / getProcessTime(), pointCloud->size(), getPackageTime());
 		}//Try
 		catch (Exception^ e)
 		{
-			fallos++;
-			Console::BackgroundColor = ConsoleColor::Red;
-			Console::Write("\r [" + fallos + "]" + e->Message);
+			throw e;
 		}
 	}//while
 }

@@ -18,6 +18,7 @@ public:
 	DataReader(IPEndPoint^ LaserIpEndPoint);
 	~DataReader();
 
+	//void ReadData(double &frecuency, double &packages, double &ptime, bool &treal);
 	void ReadData();
 	double getProcessTime();
 	double getPackageTime();

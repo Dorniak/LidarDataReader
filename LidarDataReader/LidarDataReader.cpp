@@ -13,7 +13,9 @@ int main(cli::array<System::String ^> ^args)
 	Console::SetWindowSize(80, 50);
 	Console::Beep(415,200);
 	Console::WriteLine("| Process  Time |\tPackages/s\t|\tPoints\t|\tLoop  Time|\n");
-		reader->ReadData();
+	double frecuency, packages, ptime;
+	bool treal;
+		reader->ReadData(frecuency,packages,ptime,treal);
 	
 	
 }
