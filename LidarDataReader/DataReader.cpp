@@ -31,59 +31,119 @@ DataReader::~DataReader()
 /// que pueden inducirse de estas primeras. Con esta inforación se construye y almacena el punto Cada paquete consta de 1206 bytes
 /// ClientLIDAR elimina la cabecera de 42 bytes </para>
 /// </summary>
-//void DataReader::ReadData(double &frecuency, double &packages, double &ptime, bool &treal)
-void DataReader::ReadData()
+
+void DataReader::ReadData(Object^ data)
 {
-	int azimuth_index = 0, distance_index = 0, intensity_index = 0;
+	data1 = data;
+	cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data;
+	if (!thread_reader || thread_reader->ThreadState != System::Threading::ThreadState::Running){
+		thread_reader = gcnew Thread(gcnew ThreadStart(this, &DataReader::ReadDataThread));
+		thread_reader->Start();
+		}
+	
+	parameters_in[12] = thread_reader->ThreadState;
+}
+void DataReader::StopReadData()
+{
+	try
+	{
+		cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data1;
+		parameters_in[12] = System::Threading::ThreadState::Stopped;
+		thread_reader->Abort();
+	}
+	catch (Exception^e)
+	{
+		
+	}
+}
+void DataReader::ReadDataThread()
+{
+
+	cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data1;
+	double CALIBRATE_X, CALIBRATE_Y, CALIBRATE_Z, CALIBRATE_R, CALIBRATE_P, CALIBRATE_W;
+	CALIBRATE_X = Convert::ToDouble(parameters_in[0]);
+	CALIBRATE_Y = Convert::ToDouble(parameters_in[1]);
+	CALIBRATE_Z = Convert::ToDouble(parameters_in[2]);
+	CALIBRATE_R = Convert::ToDouble(parameters_in[3]);
+	CALIBRATE_P = Convert::ToDouble(parameters_in[4]);
+	CALIBRATE_Y = Convert::ToDouble(parameters_in[5]);
+
+	int azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0, mm = 0;
 	double first_azimuth = -1;
-	clock_t start_procces, start_loop, frecuency_clock;
+	clock_t start_procces, frecuency_clock;
 	List<Punto3D^>^ pointCloud = gcnew List<Punto3D^>();
 	cli::array<Byte>^ ReceiveBytes;
 	cli::array<Double>^ azimuths;
 	cli::array<Double>^ distances;
 	cli::array<Double>^ intensities;
+	StreamWriter^ loger;
+	Punto3D^ p;
 
-	while (true) {
-		try
-		{
-			//Console::ResetColor();
-			ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
+	try
+	{
+		if ((double)parameters_in[11] == -1.0) {}
+				
+	}
+	catch (Exception^e)
+	{
+		Stream^ sr = (Stream^)parameters_in[11];
+		loger = gcnew StreamWriter(sr);
+	}
+		//StreamWriter^ fs = File::CreateText("C:\\LOGS\\" + DateTime::Now.ToString("HH-mm-ss") + ".log");
+		while (true) {
+			try
+			{
+				cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data1;
 
-			start_procces = clock();
-			frecuency_clock = clock();
-			azimuths = InterpolateAzimuth(ReceiveBytes);
-			distances = ExtractDistances(ReceiveBytes);
-			intensities = ExtractIntensities(ReceiveBytes);
+				ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
 
-			if (first_azimuth == -1)
-				first_azimuth = azimuths[0];
+				start_procces = clock();
+				frecuency_clock = clock();
+				azimuths = InterpolateAzimuth(ReceiveBytes);
+				distances = ExtractDistances(ReceiveBytes);
+				intensities = ExtractIntensities(ReceiveBytes);
 
-			for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
-				for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
-					if (azimuths[azimuth_index + 1] >= first_azimuth) {
-					//	frecuency = ((clock() - frecuency_clock) / CLOCKS_PER_SEC);
-						//TODO: Enviar vector.
-						pointCloud->Clear();
-						first_azimuth = azimuths[azimuth_index + 1];
+				if (first_azimuth == -1)
+					first_azimuth = azimuths[0];
+
+				for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
+					for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
+						if (azimuths[azimuth_index] >= first_azimuth) {
+							parameters_in[10] = ((clock() - frecuency_clock) / CLOCKS_PER_SEC);
+								//TODO: Enviar vector.
+							pointCloud->Clear();
+							first_azimuth = azimuths[azimuth_index];
+						}
+						p = gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i));
+						p->CalculateCoordinates(CALIBRATE_X, CALIBRATE_Y, CALIBRATE_Z);
+						if ((int)parameters_in[11] != -1) {
+							loger->WriteLine(p->verCoordenadas());
+							loger->Flush();
+						}
+
+						distance_index++;
+						intensity_index++;
 					}
-					pointCloud[i] = gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i));
-					distance_index++;
-					intensity_index++;
+					azimuth_index++;
 				}
-				azimuth_index++;
-			}
+				saveProcessTime(((clock() - start_procces) / CLOCKS_PER_SEC));
+				parameters_in[7] = ((clock() - start_procces) / CLOCKS_PER_SEC);
+				azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;
+				parameters_in[6] = (double)parameters_in[7] / 60;
 
-		//	ptime = ((clock() - start_procces) / CLOCKS_PER_SEC);
-			azimuth_index = 0, distance_index = 0, intensity_index = 0;
-			//packages = ptime / 60;
-			//	Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", getProcessTime(), 60 / getProcessTime(), pointCloud->size(), getPackageTime());
-		}//Try
-		catch (Exception^ e)
-		{
-			throw e;
-		}
-	}//while
-}
+
+				Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", getProcessTime(), 60 / getProcessTime(), pointCloud->Count, getPackageTime());
+
+
+
+			}//Try
+			catch (Exception^ e)
+			{
+				System::Windows::Forms::MessageBox::Show(e->ToString());
+			}
+		}//while
+	}
+
 
 /// <summary>
 /// Gets the process time.

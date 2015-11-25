@@ -9,6 +9,9 @@ using namespace System;
 using namespace System::Net;
 using namespace System::Text;
 using namespace System::Net::Sockets;
+using namespace System::IO;
+using namespace System::Text;
+using namespace System::Threading;
 
 using namespace System::Collections::Generic;
 ref class DataReader
@@ -18,8 +21,10 @@ public:
 	DataReader(IPEndPoint^ LaserIpEndPoint);
 	~DataReader();
 
-	//void ReadData(double &frecuency, double &packages, double &ptime, bool &treal);
-	void ReadData();
+	Object^ data1;
+	void ReadData(Object^ data);
+	void StopReadData();
+	void ReadDataThread();
 	double getProcessTime();
 	double getPackageTime();
 	double getAngle(int channel);
@@ -41,6 +46,6 @@ private:
 	IPEndPoint^ LaserIpEndPoint;
 	double process_Time;
 	double package_Time;
-
+	Thread^ thread_reader;
 };
 
