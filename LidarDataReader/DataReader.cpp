@@ -32,10 +32,9 @@ DataReader::~DataReader()
 /// ClientLIDAR elimina la cabecera de 42 bytes </para>
 /// </summary>
 
-void DataReader::ReadData(Object^ data)
+void DataReader::ReadData(cli::array<Object^> ^ data)
 {
-	data1 = data;
-	cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data;
+	parameters_in = (cli::array<Object^>^)data;
 	if (!thread_reader || thread_reader->ThreadState != System::Threading::ThreadState::Running){
 		thread_reader = gcnew Thread(gcnew ThreadStart(this, &DataReader::ReadDataThread));
 		thread_reader->Start();
@@ -47,7 +46,6 @@ void DataReader::StopReadData()
 {
 	try
 	{
-		cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data1;
 		parameters_in[12] = System::Threading::ThreadState::Stopped;
 		thread_reader->Abort();
 	}
@@ -58,8 +56,6 @@ void DataReader::StopReadData()
 }
 void DataReader::ReadDataThread()
 {
-
-	cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data1;
 	double CALIBRATE_X, CALIBRATE_Y, CALIBRATE_Z, CALIBRATE_R, CALIBRATE_P, CALIBRATE_W;
 	CALIBRATE_X = Convert::ToDouble(parameters_in[0]);
 	CALIBRATE_Y = Convert::ToDouble(parameters_in[1]);
@@ -93,8 +89,6 @@ void DataReader::ReadDataThread()
 		while (true) {
 			try
 			{
-				cli::array<Object^> ^ parameters_in = (cli::array<Object^>^)data1;
-
 				ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
 
 				start_procces = clock();
@@ -108,14 +102,18 @@ void DataReader::ReadDataThread()
 
 				for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
 					for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
+
 						if (azimuths[azimuth_index] >= first_azimuth) {
 							parameters_in[10] = ((clock() - frecuency_clock) / CLOCKS_PER_SEC);
 								//TODO: Enviar vector.
 							pointCloud->Clear();
 							first_azimuth = azimuths[azimuth_index];
 						}
+
 						p = gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i));
 						p->CalculateCoordinates(CALIBRATE_X, CALIBRATE_Y, CALIBRATE_Z);
+						pointCloud[pointCloud->Count] = p;
+
 						if ((int)parameters_in[11] != -1) {
 							loger->WriteLine(p->verCoordenadas());
 							loger->Flush();
@@ -126,16 +124,12 @@ void DataReader::ReadDataThread()
 					}
 					azimuth_index++;
 				}
-				saveProcessTime(((clock() - start_procces) / CLOCKS_PER_SEC));
+	
 				parameters_in[7] = ((clock() - start_procces) / CLOCKS_PER_SEC);
-				azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;
 				parameters_in[6] = (double)parameters_in[7] / 60;
 
-
-				Console::Write("\r|\t{0}\t|\t{1}\t|\t{2}\t|\t{3}\t|\r", getProcessTime(), 60 / getProcessTime(), pointCloud->Count, getPackageTime());
-
-
-
+				azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;
+			
 			}//Try
 			catch (Exception^ e)
 			{

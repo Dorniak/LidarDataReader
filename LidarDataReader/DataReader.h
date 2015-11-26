@@ -21,8 +21,8 @@ public:
 	DataReader(IPEndPoint^ LaserIpEndPoint);
 	~DataReader();
 
-	Object^ data1;
-	void ReadData(Object^ data);
+	cli::array<Object^> ^ parameters_in;
+	void ReadData(cli::array<Object^>^ data);
 	void StopReadData();
 	void ReadDataThread();
 	double getProcessTime();
