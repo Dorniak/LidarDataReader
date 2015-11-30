@@ -47,5 +47,6 @@ private:
 	double process_Time;
 	double package_Time;
 	Thread^ thread_reader;
+	StreamWriter^ loger;
 };
 

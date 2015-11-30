@@ -37,6 +37,7 @@ void DataReader::ReadData(cli::array<Object^> ^ data)
 	parameters_in = (cli::array<Object^>^)data;
 	if (!thread_reader || thread_reader->ThreadState != System::Threading::ThreadState::Running){
 		thread_reader = gcnew Thread(gcnew ThreadStart(this, &DataReader::ReadDataThread));
+		loger = gcnew StreamWriter(parameters_in[11] + "\\"+ DateTime::Now.ToString("dd-MMMM-yyyy-HH-mm-ss")+".log");
 		thread_reader->Start();
 		}
 	
@@ -67,28 +68,16 @@ void DataReader::ReadDataThread()
 	int azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0, mm = 0;
 	double first_azimuth = -1;
 	clock_t start_procces, frecuency_clock;
-	List<Punto3D^>^ pointCloud = gcnew List<Punto3D^>();
+	List<Punto3D^>^ pointCloud = gcnew List<Punto3D^>(5000);
 	cli::array<Byte>^ ReceiveBytes;
 	cli::array<Double>^ azimuths;
 	cli::array<Double>^ distances;
 	cli::array<Double>^ intensities;
-	StreamWriter^ loger;
 	Punto3D^ p;
-
-	try
-	{
-		if ((double)parameters_in[11] == -1.0) {}
-				
-	}
-	catch (Exception^e)
-	{
-		Stream^ sr = (Stream^)parameters_in[11];
-		loger = gcnew StreamWriter(sr);
-	}
-		//StreamWriter^ fs = File::CreateText("C:\\LOGS\\" + DateTime::Now.ToString("HH-mm-ss") + ".log");
+	
 		while (true) {
-			try
-			{
+			/*try
+			{*/
 				ReceiveBytes = ClientLIDAR->Receive(LaserIpEndPoint);
 
 				start_procces = clock();
@@ -103,8 +92,8 @@ void DataReader::ReadDataThread()
 				for (int block = 0; block < NUMBER_OF_BLOCKS * 2; block++) {
 					for (int i = 0; i < NUMBER_OF_CHANNELS;i++) {
 
-						if (azimuths[azimuth_index] >= first_azimuth) {
-							parameters_in[10] = ((clock() - frecuency_clock) / CLOCKS_PER_SEC);
+						if (azimuths[azimuth_index] < first_azimuth) {
+							parameters_in[10] = 1/(double)((clock() - frecuency_clock) / CLOCKS_PER_SEC);
 								//TODO: Enviar vector.
 							pointCloud->Clear();
 							first_azimuth = azimuths[azimuth_index];
@@ -112,29 +101,29 @@ void DataReader::ReadDataThread()
 
 						p = gcnew Punto3D(distances[distance_index], intensities[intensity_index], azimuths[azimuth_index], getAngle(i));
 						p->CalculateCoordinates(CALIBRATE_X, CALIBRATE_Y, CALIBRATE_Z);
-						pointCloud[pointCloud->Count] = p;
 
-						if ((int)parameters_in[11] != -1) {
-							loger->WriteLine(p->verCoordenadas());
-							loger->Flush();
-						}
+						
+						loger->WriteLine(p->verCoordenadas());
+						loger->Flush();
 
+						pointCloud->Add(p);
+						
 						distance_index++;
 						intensity_index++;
 					}
 					azimuth_index++;
 				}
 	
-				parameters_in[7] = ((clock() - start_procces) / CLOCKS_PER_SEC);
-				parameters_in[6] = (double)parameters_in[7] / 60;
-
+				parameters_in[7] = (double)((clock() - start_procces) / CLOCKS_PER_SEC);
+				parameters_in[6] = (double)parameters_in[7]+0.00001 / 60;
+				parameters_in[8] = (int)pointCloud->Count;
 				azimuth_index = 0, distance_index = 0, intensity_index = 0, fallos = 0;
 			
-			}//Try
-			catch (Exception^ e)
+			//}//Try
+			/*catch (Exception^ e)
 			{
 				System::Windows::Forms::MessageBox::Show(e->ToString());
-			}
+			}*/
 		}//while
 	}
 
